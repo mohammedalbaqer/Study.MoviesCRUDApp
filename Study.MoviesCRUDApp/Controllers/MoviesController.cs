@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using NToastNotify;
 using Study.MoviesCRUDApp.Models;
 using Study.MoviesCRUDApp.ViewModels;
 using System.IO;
@@ -9,15 +10,17 @@ namespace Study.MoviesCRUDApp.Controllers
     public class MoviesController : Controller
     {
         private readonly ApplicationDbContext _context;
+        private readonly IToastNotification _toastNotification;
         private new List<string> _allowedExtenstions = new List<string> { ".jpg", ".png" };
         private long _maxAllowedPosterSize = 1048576;
-        public MoviesController(ApplicationDbContext context)
+        public MoviesController(ApplicationDbContext context, IToastNotification toastNotification)
         {
             _context = context;
+            _toastNotification = toastNotification;
         }
         public async Task<IActionResult> Index()
         {
-            var movies = await _context.Movies.ToListAsync();
+            var movies = await _context.Movies.OrderByDescending(m => m.Rate).ToListAsync();
             return View(movies);
         }
 
@@ -51,17 +54,16 @@ namespace Study.MoviesCRUDApp.Controllers
                 return View("MovieForm", model);
             }
 
-            var poster = files.FirstOrDefault();
-            var allowedExtenstions = new List<string> { ".png", ".jpg" };
+            var poster = files.FirstOrDefault();           
 
-            if (!allowedExtenstions.Contains(Path.GetExtension(poster.FileName).ToLower()))
+            if (!_allowedExtenstions.Contains(Path.GetExtension(poster.FileName).ToLower()))
             {
                 model.Genres = await _context.Genres.OrderBy(m => m.Name).ToListAsync();
                 ModelState.AddModelError("Poster", "Only .PNG, .JPG images are allowed!");
                 return View("MovieForm", model);
             }
 
-            if (poster.Length > 1048576)
+            if (poster.Length > _maxAllowedPosterSize)
             {
                 model.Genres = await _context.Genres.OrderBy(m => m.Name).ToListAsync();
                 ModelState.AddModelError("Poster", "Poster cannot be more than 1 MB!");
@@ -85,6 +87,7 @@ namespace Study.MoviesCRUDApp.Controllers
             _context.Movies.Add(movies);
             _context.SaveChanges();
 
+            _toastNotification.AddSuccessToastMessage("Movie added successfully!");
             return RedirectToAction(nameof(Index));
         }
 
@@ -164,8 +167,39 @@ namespace Study.MoviesCRUDApp.Controllers
             movie.Rate = model.Rate;
             movie.Storeline = model.Storeline;
 
-            _context.SaveChanges();            
+            _context.SaveChanges();
+
+            _toastNotification.AddSuccessToastMessage("Movie updated successfully!");
             return RedirectToAction(nameof(Index));
+        }
+
+        public async Task<IActionResult> Details(int? id)
+        {
+            if (id == null)
+                return BadRequest();
+
+            var movie = await _context.Movies.Include(m => m.Genre).SingleOrDefaultAsync(m => m.Id == id);
+
+            if (movie == null)
+                return NotFound();
+
+            return View(movie);
+        }
+
+        public async Task<IActionResult> Delete(int? id)
+        {
+            if (id == null)
+                return BadRequest();
+
+            var movie = await _context.Movies.FindAsync(id);
+
+            if (movie == null)
+                return NotFound();
+
+            _context.Movies.Remove(movie);
+            _context.SaveChanges();
+
+            return Ok();
         }
 
     }

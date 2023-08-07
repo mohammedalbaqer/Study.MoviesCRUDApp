@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using NToastNotify;
 using Study.MoviesCRUDApp.Models;
 using System;
 
@@ -9,6 +10,14 @@ builder.Services.AddControllersWithViews();
 // Connect to the database
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
 options.UseSqlite(builder.Configuration.GetConnectionString("SqliteDbConnection")));
+// Add NToastNotify services
+builder.Services.AddMvc().AddNToastNotifyToastr(new ToastrOptions()
+{
+    ProgressBar = true,
+    PositionClass = ToastPositions.TopRight,
+    PreventDuplicates = true,
+    CloseButton = true
+}); 
 
 var app = builder.Build();
 
